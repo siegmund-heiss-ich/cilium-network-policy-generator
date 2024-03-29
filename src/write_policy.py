@@ -11,8 +11,8 @@ def write_policies_to_files(policies):
         os.makedirs(directory)
 
     for policy_name, policy_data in policies.items():
-        ordered_policy_data = reorder_policy(policy_data)
         policies[policy_name] = add_dns_entry(policy_data)
+        ordered_policy_data = reorder_policy(policy_data)
 
         filename = os.path.join(directory, f"{policy_name}.yaml")
 

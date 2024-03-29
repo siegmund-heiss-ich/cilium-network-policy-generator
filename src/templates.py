@@ -44,10 +44,8 @@ def add_dns_entry(policy):
         ]
     }
 
-    if 'spec' not in policy:
-        policy['spec'] = {}
     if 'egress' not in policy['spec']:
-        policy['spec']['egress'] = []
+        return policy
 
     policy['spec']['egress'].append(dns_rule)
     return policy
