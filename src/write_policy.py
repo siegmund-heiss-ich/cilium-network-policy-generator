@@ -12,10 +12,10 @@ def write_policies_to_files(policies):
 
     for policy_name, policy_data in policies.items():
         policies[policy_name] = add_dns_entry(policy_data)
-    if 'ingress' not in policy_data['spec']:
-        policy_data['spec']['ingress'] = [{}]
-    if 'egress' not in policy_data['spec']:
-        policy_data['spec']['egress'] = [{}]
+        if 'ingress' not in policy_data['spec']:
+            policy_data['spec']['ingress'] = [{}]
+        if 'egress' not in policy_data['spec']:
+            policy_data['spec']['egress'] = [{}]
 
         ordered_policy_data = reorder_policy(policy_data)
 
