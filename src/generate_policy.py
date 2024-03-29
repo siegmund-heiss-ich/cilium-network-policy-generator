@@ -48,67 +48,30 @@ def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
         logging.error(f"Policy {policy_id} not found.")
         return
 
+    # Ensure the rule_key section exists in the policy
     if rule_key not in policy["spec"]:
         policy["spec"][rule_key] = [new_rule]
         return
 
-    new_labels = new_rule["fromEndpoints"][0]["matchLabels"] if is_ingress else new_rule["toEndpoints"][0]["matchLabels"]
-    new_ports = new_rule.get("toPorts", []) if is_ingress else None
+    # Define the key based on whether the rule is ingress or egress
+    endpoints_key = "fromEndpoints" if is_ingress else "toEndpoints"
+    new_labels = new_rule[endpoints_key][0]["matchLabels"]
 
-    # Track if the new rule has been merged with an existing rule
-    merged = False
+    # For ingress, handle ports. For egress, assume no ports.
+    new_ports = new_rule.get("toPorts", []) if is_ingress else []
+
+    existing_rule_found = False
     for rule in policy["spec"][rule_key]:
-        # For ingress, match by ports and labels; for egress, match by labels only
-        if is_ingress:
-            existing_ports = rule.get("toPorts", [])
-            if new_ports == existing_ports:
-                # Check if labels can be merged
-                if not any(endpoint["matchLabels"] == new_labels for endpoint in rule["fromEndpoints"]):
-                    rule["fromEndpoints"].append({"matchLabels": new_labels})
-                merged = True
-                break
-        else:  # Egress
-            # Directly merge labels if they are not already present
-            if not any(endpoint["matchLabels"] == new_labels for endpoint in rule["toEndpoints"]):
-                rule["toEndpoints"].append({"matchLabels": new_labels})
-            merged = True
+        # Match the rule based on labels
+        if endpoints_key in rule and rule[endpoints_key][0]["matchLabels"] == new_labels:
+            existing_rule_found = True
+            # For ingress rules, update or add new ports
+            if is_ingress:
+                for new_port in new_ports:
+                    if new_port not in rule.get("toPorts", []):
+                        rule["toPorts"] = rule.get("toPorts", []) + [new_port]
             break
 
-    if not merged:
+    # If no existing rule matched the new labels, add the new rule
+    if not existing_rule_found:
         policy["spec"][rule_key].append(new_rule)
-
-# def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
-#     rule_key = "ingress" if is_ingress else "egress"
-#     policy = policies.get(policy_id)
-
-#     if not policy:
-#         logging.error(f"Policy {policy_id} not found.")
-#         return
-
-#     # Ensure the rule_key section exists in the policy
-#     if rule_key not in policy["spec"]:
-#         policy["spec"][rule_key] = [new_rule]
-#         return
-
-#     # Define the key based on whether the rule is ingress or egress
-#     endpoints_key = "fromEndpoints" if is_ingress else "toEndpoints"
-#     new_labels = new_rule[endpoints_key][0]["matchLabels"]
-
-#     # For ingress, handle ports. For egress, assume no ports.
-#     new_ports = new_rule.get("toPorts", []) if is_ingress else []
-
-#     existing_rule_found = False
-#     for rule in policy["spec"][rule_key]:
-#         # Match the rule based on labels
-#         if endpoints_key in rule and rule[endpoints_key][0]["matchLabels"] == new_labels:
-#             existing_rule_found = True
-#             # For ingress rules, update or add new ports
-#             if is_ingress:
-#                 for new_port in new_ports:
-#                     if new_port not in rule.get("toPorts", []):
-#                         rule["toPorts"] = rule.get("toPorts", []) + [new_port]
-#             break
-
-#     # If no existing rule matched the new labels, add the new rule
-#     if not existing_rule_found:
-#         policy["spec"][rule_key].append(new_rule)
