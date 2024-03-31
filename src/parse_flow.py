@@ -5,8 +5,8 @@ def parse_flow(log_entry):
     try:
         # Extract necessary information for CNP
         flow_info = log_entry.get("flow", {})
-        src_labels = [label.split(':')[1] for label in flow_info.get("source", {}).get("labels", []) if "kubernetes" not in label and "cilium" not in label and "kube-dns" not in label]
-        dst_labels = [label.split(':')[1] for label in flow_info.get("destination", {}).get("labels", []) if "kubernetes" not in label and "cilium" not in label and "kube-dns" not in label]
+        src_labels = [label.split(':')[1] for label in flow_info.get("source", {}).get("labels", []) if "kubernetes" not in label and "cilium" not in label and "k8s-app" not in label]
+        dst_labels = [label.split(':')[1] for label in flow_info.get("destination", {}).get("labels", []) if "kubernetes" not in label and "cilium" not in label and "k8s-app" not in label]
         # src_namespace = flow_info.get("source", {}).get("namespace", "")
         # dst_namespace = flow_info.get("destination", {}).get("namespace", "")
         # src_pod_name = flow_info.get("source", {}).get("pod_name", "")
@@ -38,8 +38,7 @@ def parse_flow(log_entry):
             "source_port": src_port,
             "destination_port": dst_port,
         }
-                        
     except json.JSONDecodeError as e:
-        logging.error(f"Error parsing JSON line: {e}")
+        logging.error(f"Error parsing Hubble Flow: {e}")
 
     return flow_entries
