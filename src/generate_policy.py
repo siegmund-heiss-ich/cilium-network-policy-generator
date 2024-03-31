@@ -12,7 +12,7 @@ def generate_policy(policies, policy_info, processedFlows, noIngressEgress, spec
         destination_labels = {k: v for k, v in (label.split('=') for label in policy_info.get('destination_labels', []))}
         source_labels = {k: v for k, v in (label.split('=') for label in policy_info.get('source_labels', []))}
     except ValueError as e:
-        logging.error(f"Parsing error: {e}")
+        logging.error(f"Parsing error: {e} Line: {policy_info}")
         return policies 
 
     if policy_info.get('traffic_direction', '') == "INGRESS":
@@ -29,7 +29,7 @@ def generate_policy(policies, policy_info, processedFlows, noIngressEgress, spec
         noIngressEgress[0] += 1
         return policies, noIngressEgress
 
-    if is_ingress and relevant_port < 10000 or not is_ingress:
+    if is_ingress and relevant_port < 1000 or not is_ingress:
         policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
         if policy_id not in policies:
             policies[policy_id] = create_policy_template(policy_id, affected_labels)
