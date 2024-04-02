@@ -2,18 +2,24 @@ import logging
 
 from .templates import create_rule_template
 from .templates import create_policy_template
+from .process_labels import process_labels
 
-def generate_policy(policies, policy_info, processedFlows, noIngressEgress, specPortRange):
+def generate_policy(policies, flow, processedFlows, noIngressEgress, noUsefulLabels):
 
-    destination_port = policy_info.get('destination_port', 0)
-    protocol = policy_info.get('l4_protocol', '')
+    policy_info = flow.get("flow", {})
+    l4_protocol = "TCP" if "TCP" in policy_info.get("l4", {}) else "UDP"
+    source_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
+    destination_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("destination_port", 0)
 
-    try:
-        destination_labels = {k: v for k, v in (label.split('=') for label in policy_info.get('destination_labels', []))}
-        source_labels = {k: v for k, v in (label.split('=') for label in policy_info.get('source_labels', []))}
-    except ValueError as e:
-        logging.error(f"Parsing error: {e} Line: {policy_info}")
-        return policies 
+    source_labels = {}
+    destination_labels = {}
+
+    source_labels = process_labels(policy_info, "source")
+    destination_labels = process_labels(policy_info, "destination")
+
+    if not source_labels or not destination_labels:
+        noUsefulLabels[0] += 1
+        return policies, noUsefulLabels
 
     if policy_info.get('traffic_direction', '') == "INGRESS":
         is_ingress = True
@@ -23,22 +29,18 @@ def generate_policy(policies, policy_info, processedFlows, noIngressEgress, spec
     elif policy_info.get('traffic_direction', '') == "EGRESS":
         is_ingress = False
         affected_labels = source_labels
-        relevant_port = ''
+        relevant_port = source_port
         match_Labels = destination_labels
     else:
         noIngressEgress[0] += 1
         return policies, noIngressEgress
 
-    if is_ingress and relevant_port < 1000 or not is_ingress:
-        policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
-        if policy_id not in policies:
-            policies[policy_id] = create_policy_template(policy_id, affected_labels)
-        new_rule = create_rule_template(relevant_port, protocol, match_Labels, is_ingress)
-        update_or_add_rule(policies, policy_id, new_rule, is_ingress)
-        processedFlows[0] += 1
-    else:
-        specPortRange[0] += 1
-    return policies, processedFlows, specPortRange
+    policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
+    if policy_id not in policies:
+        policies[policy_id] = create_policy_template(policy_id, affected_labels)
+    new_rule = create_rule_template(relevant_port, l4_protocol, match_Labels, is_ingress)
+    update_or_add_rule(policies, policy_id, new_rule, is_ingress)
+    processedFlows[0] += 1
 
 def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
     rule_key = "ingress" if is_ingress else "egress"

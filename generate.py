@@ -2,7 +2,6 @@ import logging
 import json
 import sys
 
-from src.parse_flow import *
 from src.generate_policy import *
 from src.write_policy import *
 
@@ -18,8 +17,7 @@ def main(argv):
     policies = {}
     processedFlows = [0]
     noDirection = [0]
-    specPortRange = [0]
-    noUsefulLables = 0
+    noUsefulLabels = [0]
     totalFlows = 0
     droppedFlows = 0
     reservedFlows = 0
@@ -38,23 +36,17 @@ def main(argv):
                 if any("reserved:" in label.lower() for label in labels): 
                     reservedFlows += 1
                     continue
-                flow_info = parse_flow(log_entry)
-                if not flow_info.get('source_labels', []) or not flow_info.get('destination_labels', []):
-                    noUsefulLables += 1
-                    continue
-                logging.debug(flow_info)
-                generate_policy(policies, flow_info, processedFlows, noDirection, specPortRange)
+                generate_policy(policies, log_entry, processedFlows, noDirection, noUsefulLabels)
             except ValueError as e:
                 processingErrors += 1
                 logging.error(f"Error processing Flow: {e}")
                 continue
     processedFlows[0] -= processingErrors
-    lostFlows = totalFlows - (processingErrors + droppedFlows + reservedFlows + noUsefulLables + noDirection[0] + specPortRange[0] + processedFlows[0])
+    lostFlows = totalFlows - (processingErrors + droppedFlows + reservedFlows + noUsefulLabels[0] + noDirection[0] + processedFlows[0])
     logging.info(f'Dropped flows: {droppedFlows}')
     logging.info(f'Flow with content "reserved:": {reservedFlows}')
-    logging.info(f'Labels not useful: {noUsefulLables}')
+    logging.info(f'Labels not useful: {noUsefulLabels[0]}')
     logging.info(f'Flows with no direction: {noDirection[0]}')
-    logging.info(f'Port not in specified range: {specPortRange[0]}')
     logging.info(f'Lost flows: {lostFlows}')
     logging.info(f'Processing errors: {processingErrors}')
     logging.info(f'Total flows in file: {totalFlows}')
