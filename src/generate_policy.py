@@ -12,23 +12,25 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
     source_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
     destination_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("destination_port", 0)
     direction = policy_info.get('traffic_direction', '')
-    source_namespace = policy_info.get("source", {}).get("namespace", "")
-    destination_namespace = policy_info.get("destination", {}).get("namespace", "")
-    logging.debug(f"{source_namespace} {destination_namespace}")
+    src_namespace = policy_info.get("source", {}).get("namespace", "")
+    dst_namespace = policy_info.get("destination", {}).get("namespace", "")
+    logging.debug(f"{src_namespace} {dst_namespace}")
 
     if direction == "INGRESS":
         is_ingress = True
+        affected_namespace = dst_namespace
         affected_labels = process_labels_namespace(policy_info, "destination")
         relevant_port = destination_port
-        if source_namespace == destination_namespace:
+        if src_namespace == dst_namespace:
             match_Labels = process_labels_namespace(policy_info, "source")
         else:
             match_Labels = process_labels_cluster(policy_info, "source")
     elif direction == "EGRESS":
         is_ingress = False
+        affected_namespace = src_namespace
         affected_labels = process_labels_namespace(policy_info, "source")
         relevant_port = source_port
-        if source_namespace == destination_namespace:
+        if src_namespace == dst_namespace:
             match_Labels = process_labels_namespace(policy_info, "destination")
         else:
             match_Labels = process_labels_cluster(policy_info, "destination")
@@ -48,7 +50,7 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
     if labelPortCounter[label_port_key] > 3:
         policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
         if policy_id not in policies:
-            policies[policy_id] = create_policy_template(policy_id, affected_labels)
+            policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)
         new_rule = create_rule_template(relevant_port, l4_protocol, match_Labels, is_ingress)
         update_or_add_rule(policies, policy_id, new_rule, is_ingress)
         processedFlows[0] += 1
@@ -61,30 +63,24 @@ def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
         logging.error(f"Policy {policy_id} not found.")
         return
 
-    # Ensure the rule_key section exists in the policy
     if rule_key not in policy["spec"]:
         policy["spec"][rule_key] = [new_rule]
         return
 
-    # Define the key based on whether the rule is ingress or egress
     endpoints_key = "fromEndpoints" if is_ingress else "toEndpoints"
     new_labels = new_rule[endpoints_key][0]["matchLabels"]
 
-    # For ingress, handle ports. For egress, assume no ports.
-    new_ports = new_rule.get("toPorts", []) if is_ingress else []
+    new_ports = new_rule.get("toPorts", [])
 
     existing_rule_found = False
     for rule in policy["spec"][rule_key]:
-        # Match the rule based on labels
         if endpoints_key in rule and rule[endpoints_key][0]["matchLabels"] == new_labels:
             existing_rule_found = True
-            # For ingress rules, update or add new ports
-            if is_ingress:
-                for new_port in new_ports:
-                    if new_port not in rule.get("toPorts", []):
-                        rule["toPorts"] = rule.get("toPorts", []) + [new_port]
+            existing_ports = rule.get("toPorts", [])
+            for new_port in new_ports:
+                if new_port not in existing_ports:
+                    rule["toPorts"] = existing_ports + [new_port]
             break
 
-    # If no existing rule matched the new labels, add the new rule
     if not existing_rule_found:
         policy["spec"][rule_key].append(new_rule)

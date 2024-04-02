@@ -7,7 +7,7 @@ from src.write_policy import *
 
 def main(argv):
     logging.basicConfig()
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
     try:
         file_path = argv[0]
     except IndexError:
@@ -29,11 +29,9 @@ def main(argv):
             try:
                 log_entry = json.loads(line)
                 totalFlows += 1
-                # Jump to next iteration if verdict is DROPPED
                 if log_entry.get("flow", {}).get("verdict", "").upper() == "DROPPED":
                     droppedFlows += 1
                     continue
-                # Jump to next iteration if "reserved:" is in labels
                 labels = log_entry.get("flow", {}).get("source", {}).get("labels", []) + log_entry.get("flow", {}).get("destination", {}).get("labels", [])
                 if any("reserved:" in label.lower() for label in labels): 
                     reservedFlows += 1
