@@ -61,13 +61,8 @@ def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
     rule_key = "ingress" if is_ingress else "egress"
     policy = policies.get(policy_id)
 
-    if not policy:
-        logging.error(f"Policy {policy_id} not found.")
-        return
-
     if rule_key not in policy["spec"]:
         policy["spec"][rule_key] = [new_rule]
-        return
 
     endpoints_key = "fromEndpoints" if is_ingress else "toEndpoints"
     new_labels = new_rule[endpoints_key][0]["matchLabels"]
