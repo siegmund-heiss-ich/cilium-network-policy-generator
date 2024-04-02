@@ -54,6 +54,8 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
         new_rule = create_rule_template(relevant_port, l4_protocol, match_Labels, is_ingress)
         update_or_add_rule(policies, policy_id, new_rule, is_ingress)
         processedFlows[0] += 1
+    else:
+        processedFlows[0] += 1
 
 def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
     rule_key = "ingress" if is_ingress else "egress"
