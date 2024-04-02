@@ -10,11 +10,12 @@ def main(argv):
     logging.getLogger().setLevel(logging.INFO)
     try:
         file_path = argv[0]
-    except IndexError:  # Catching specific exception
+    except IndexError:
         logging.error('Usage: generate.py <file_path>')
         sys.exit(2)
 
     policies = {}
+    labelPortCounter = {}
     processedFlows = [0]
     noDirection = [0]
     noUsefulLabels = [0]
@@ -32,15 +33,17 @@ def main(argv):
                 if log_entry.get("flow", {}).get("verdict", "").upper() == "DROPPED":
                     droppedFlows += 1
                     continue
+                # Jump to next iteration if "reserved:" is in labels
                 labels = log_entry.get("flow", {}).get("source", {}).get("labels", []) + log_entry.get("flow", {}).get("destination", {}).get("labels", [])
                 if any("reserved:" in label.lower() for label in labels): 
                     reservedFlows += 1
                     continue
-                generate_policy(policies, log_entry, processedFlows, noDirection, noUsefulLabels)
+                generate_policy(policies, log_entry, labelPortCounter, processedFlows, noDirection, noUsefulLabels)
             except ValueError as e:
                 processingErrors += 1
                 logging.error(f"Error processing Flow: {e}")
                 continue
+
     processedFlows[0] -= processingErrors
     lostFlows = totalFlows - (processingErrors + droppedFlows + reservedFlows + noUsefulLabels[0] + noDirection[0] + processedFlows[0])
     logging.info(f'Dropped flows: {droppedFlows}')

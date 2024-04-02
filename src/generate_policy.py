@@ -4,7 +4,7 @@ from .templates import create_rule_template
 from .templates import create_policy_template
 from .process_labels import process_labels
 
-def generate_policy(policies, flow, processedFlows, noIngressEgress, noUsefulLabels):
+def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressEgress, noUsefulLabels):
 
     policy_info = flow.get("flow", {})
     l4_protocol = "TCP" if "TCP" in policy_info.get("l4", {}) else "UDP"
@@ -34,13 +34,19 @@ def generate_policy(policies, flow, processedFlows, noIngressEgress, noUsefulLab
     else:
         noIngressEgress[0] += 1
         return policies, noIngressEgress
+    
+    label_port_key = f"{match_Labels}-{relevant_port}-{is_ingress}"
+    labelPortCounter[label_port_key] = labelPortCounter.get(label_port_key, 0)
+    labelPortCounter[label_port_key] += 1
+    logging.debug(f"{label_port_key} count {labelPortCounter[label_port_key]}")
 
-    policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
-    if policy_id not in policies:
-        policies[policy_id] = create_policy_template(policy_id, affected_labels)
-    new_rule = create_rule_template(relevant_port, l4_protocol, match_Labels, is_ingress)
-    update_or_add_rule(policies, policy_id, new_rule, is_ingress)
-    processedFlows[0] += 1
+    if labelPortCounter[label_port_key] > 3:
+        policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
+        if policy_id not in policies:
+            policies[policy_id] = create_policy_template(policy_id, affected_labels)
+        new_rule = create_rule_template(relevant_port, l4_protocol, match_Labels, is_ingress)
+        update_or_add_rule(policies, policy_id, new_rule, is_ingress)
+        processedFlows[0] += 1
 
 def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
     rule_key = "ingress" if is_ingress else "egress"
