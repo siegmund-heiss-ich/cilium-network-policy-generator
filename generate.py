@@ -7,7 +7,7 @@ from src.write_policy import *
 
 def main(argv):
     logging.basicConfig()
-    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger().setLevel(logging.DEBUG)
     try:
         file_path = argv[0]
     except IndexError:

@@ -2,7 +2,8 @@ import logging
 
 from .templates import create_rule_template
 from .templates import create_policy_template
-from .process_labels import process_labels
+from .process_labels import process_labels_namespace
+from .process_labels import process_labels_cluster
 
 def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressEgress, noUsefulLabels):
 
@@ -10,30 +11,34 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
     l4_protocol = "TCP" if "TCP" in policy_info.get("l4", {}) else "UDP"
     source_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
     destination_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("destination_port", 0)
+    direction = policy_info.get('traffic_direction', '')
+    source_namespace = policy_info.get("source", {}).get("namespace", "")
+    destination_namespace = policy_info.get("destination", {}).get("namespace", "")
+    logging.debug(f"{source_namespace} {destination_namespace}")
 
-    source_labels = {}
-    destination_labels = {}
-
-    source_labels = process_labels(policy_info, "source")
-    destination_labels = process_labels(policy_info, "destination")
-
-    if not source_labels or not destination_labels:
-        noUsefulLabels[0] += 1
-        return policies, noUsefulLabels
-
-    if policy_info.get('traffic_direction', '') == "INGRESS":
+    if direction is "INGRESS":
         is_ingress = True
-        affected_labels = destination_labels
+        affected_labels = process_labels_namespace(policy_info, "destination")
         relevant_port = destination_port
-        match_Labels = source_labels
-    elif policy_info.get('traffic_direction', '') == "EGRESS":
+        if source_namespace == destination_namespace:
+            match_Labels = process_labels_namespace(policy_info, "source")
+        else:
+            match_Labels = process_labels_cluster(policy_info, "source")
+    elif direction == "EGRESS":
         is_ingress = False
-        affected_labels = source_labels
+        affected_labels = process_labels_namespace(policy_info, "source")
         relevant_port = source_port
-        match_Labels = destination_labels
+        if source_namespace == destination_namespace:
+            match_Labels = process_labels_namespace(policy_info, "destination")
+        else:
+            match_Labels = process_labels_cluster(policy_info, "destination")
     else:
         noIngressEgress[0] += 1
         return policies, noIngressEgress
+    
+    if not affected_labels or not match_Labels:
+        noUsefulLabels[0] += 1
+        return policies, noUsefulLabels
     
     label_port_key = f"{match_Labels}-{relevant_port}-{is_ingress}"
     labelPortCounter[label_port_key] = labelPortCounter.get(label_port_key, 0)
