@@ -6,7 +6,7 @@ def process_labels_namespace(policy_info, label_type):
     for label in policy_info.get(label_type, {}).get("labels", []):
         try:
             key, value = label.split("=")
-            key = key.split(":")[-1]  # Only take the last part after the last colon
+            key = key.split(":")[-1]
             if not is_key_of_no_interest(key, "namespace"):
                 labels_dict[key] = value
         except ValueError:

@@ -16,7 +16,7 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
     destination_namespace = policy_info.get("destination", {}).get("namespace", "")
     logging.debug(f"{source_namespace} {destination_namespace}")
 
-    if direction is "INGRESS":
+    if direction == "INGRESS":
         is_ingress = True
         affected_labels = process_labels_namespace(policy_info, "destination")
         relevant_port = destination_port
