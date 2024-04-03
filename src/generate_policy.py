@@ -14,26 +14,44 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
     direction = policy_info.get('traffic_direction', '')
     src_namespace = policy_info.get("source", {}).get("namespace", "")
     dst_namespace = policy_info.get("destination", {}).get("namespace", "")
-    logging.debug(f"{src_namespace} {dst_namespace}")
+    trace_observation_point = policy_info.get("trace_observation_point", "")
 
     if direction == "INGRESS":
         is_ingress = True
-        affected_namespace = dst_namespace
-        affected_labels = process_labels_namespace(policy_info, "destination")
-        relevant_port = destination_port
-        if src_namespace == dst_namespace:
-            match_Labels = process_labels_namespace(policy_info, "source")
-        else:
-            match_Labels = process_labels_cluster(policy_info, "source")
+        if trace_observation_point == "TO_ENDPOINT":
+            affected_namespace = dst_namespace
+            affected_labels = process_labels_namespace(policy_info, "destination")
+            relevant_port = destination_port
+            if src_namespace == dst_namespace:
+                match_Labels = process_labels_namespace(policy_info, "source")
+            else:
+                match_Labels = process_labels_cluster(policy_info, "source")
+        elif trace_observation_point == "TO_OVERLAY":
+            affected_namespace = src_namespace
+            affected_labels = process_labels_namespace(policy_info, "source")
+            relevant_port = source_port
+            if src_namespace == dst_namespace:
+                match_Labels = process_labels_namespace(policy_info, "destination")
+            else:
+                match_Labels = process_labels_cluster(policy_info, "destination")
     elif direction == "EGRESS":
         is_ingress = False
-        affected_namespace = src_namespace
-        affected_labels = process_labels_namespace(policy_info, "source")
-        relevant_port = source_port
-        if src_namespace == dst_namespace:
-            match_Labels = process_labels_namespace(policy_info, "destination")
-        else:
-            match_Labels = process_labels_cluster(policy_info, "destination")
+        if trace_observation_point == "TO_ENDPOINT":
+            affected_namespace = dst_namespace
+            affected_labels = process_labels_namespace(policy_info, "destination")
+            relevant_port = source_port
+            if src_namespace == dst_namespace:
+                match_Labels = process_labels_namespace(policy_info, "source")
+            else:
+                match_Labels = process_labels_cluster(policy_info, "source")
+        elif trace_observation_point == "TO_OVERLAY":
+            affected_namespace = src_namespace
+            affected_labels = process_labels_namespace(policy_info, "source")
+            relevant_port = destination_port
+            if src_namespace == dst_namespace:
+                match_Labels = process_labels_namespace(policy_info, "destination")
+            else:
+                match_Labels = process_labels_cluster(policy_info, "destination")
     else:
         noIngressEgress[0] += 1
         return policies, noIngressEgress
@@ -47,7 +65,7 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
     labelPortCounter[label_port_key] += 1
     logging.debug(f"{label_port_key} count {labelPortCounter[label_port_key]}")
 
-    if labelPortCounter[label_port_key] > 3:
+    if labelPortCounter[label_port_key] > 10:
         policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
         if policy_id not in policies:
             policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)

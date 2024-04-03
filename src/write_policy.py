@@ -11,7 +11,7 @@ def write_policies_to_files(policies):
         os.makedirs(directory)
 
     for policy_name, policy_data in policies.items():
-        policies[policy_name] = add_dns_entry(policy_data)
+        # policies[policy_name] = add_dns_entry(policy_data)
         if 'ingress' not in policy_data['spec']:
             policy_data['spec']['ingress'] = [{}]
         if 'egress' not in policy_data['spec']:

@@ -7,7 +7,7 @@ def process_labels_namespace(policy_info, label_type):
         try:
             key, value = label.split("=")
             key = key.split(":")[-1]
-            if not is_key_of_no_interest(key, "namespace"):
+            if not is_key_of_no_interest(key):
                 labels_dict[key] = value
         except ValueError:
             logging.warning(f"Could not parse label: {label}")
@@ -18,16 +18,11 @@ def process_labels_cluster(policy_info, label_type):
     for label in policy_info.get(label_type, {}).get("labels", []):
         try:
             key, value = label.split("=")
-            if not is_key_of_no_interest(key, "cluster"):
-                labels_dict[key] = value
+            labels_dict[key] = value
         except ValueError:
             logging.warning(f"Could not parse label: {label}")
     return labels_dict
 
-def is_key_of_no_interest(key, context):
-    patterns_of_no_interest = {
-        "namespace": [".*cilium.*", ".*kubernetes.*", ".*k8s-app.*"],
-        "cluster": [".*policy.*"]
-    }
-    patterns = patterns_of_no_interest.get(context, [])
-    return any(re.match(pattern, key) for pattern in patterns)
+def is_key_of_no_interest(key):
+    patterns_of_no_interest = [".*cilium.*", ".*kubernetes.*", ".*k8s-app.*"]
+    return any(re.match(pattern, key) for pattern in patterns_of_no_interest)
