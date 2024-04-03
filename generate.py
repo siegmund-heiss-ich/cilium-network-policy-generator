@@ -33,7 +33,7 @@ def main(argv):
                     droppedFlows += 1
                     continue
                 labels = log_entry.get("flow", {}).get("source", {}).get("labels", []) + log_entry.get("flow", {}).get("destination", {}).get("labels", [])
-                if any("reserved:" in label.lower() for label in labels): 
+                if any("reserved:" in label.lower() for label in labels) and not any("reserved:world" in label.lower() for label in labels): 
                     reservedFlows += 1
                     continue
                 generate_policy(policies, log_entry, labelPortCounter, processedFlows, noDirection, noUsefulLabels)

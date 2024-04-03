@@ -9,58 +9,87 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
 
     policy_info = flow.get("flow", {})
     l4_protocol = "TCP" if "TCP" in policy_info.get("l4", {}) else "UDP"
-    source_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
-    destination_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("destination_port", 0)
+    src_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
+    dst_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("destination_port", 0)
     direction = policy_info.get('traffic_direction', '')
     src_namespace = policy_info.get("source", {}).get("namespace", "")
     dst_namespace = policy_info.get("destination", {}).get("namespace", "")
     trace_observation_point = policy_info.get("trace_observation_point", "")
+    src_labels = policy_info.get("source", {}).get("labels", [])
+    dst_labels = policy_info.get("destination", {}).get("labels", [])
 
+    if any("reserved:world" in label.lower() for label in src_labels):
+        return
+        is_world = True
+        match_label = None
+        if direction == "INGRESS":
+            is_ingress = True
+        elif direction == "EGRESS":
+            is_ingress = False
+            affected_namespace = dst_namespace
+            affected_labels = process_labels_namespace(policy_info, "destination")
+            relevant_port = src_port
+    elif any("reserved:world" in label.lower() for label in dst_labels):
+        return
+        is_world = True
+        match_label = None
+        if direction == "INGRESS":
+            is_ingress = True
+        elif direction == "EGRESS":
+            is_ingress = False
+            affected_namespace = src_namespace
+            affected_labels = process_labels_namespace(policy_info, "source")
+            relevant_port = dst_labels
+
+    is_world = False
     if direction == "INGRESS":
         is_ingress = True
         if trace_observation_point == "TO_ENDPOINT":
             affected_namespace = dst_namespace
             affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = destination_port
+            relevant_port = dst_port
             if src_namespace == dst_namespace:
-                match_Labels = process_labels_namespace(policy_info, "source")
+                match_label = process_labels_namespace(policy_info, "source")
             else:
-                match_Labels = process_labels_cluster(policy_info, "source")
+                match_label = process_labels_cluster(policy_info, "source")
         elif trace_observation_point == "TO_OVERLAY":
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = source_port
+            relevant_port = src_port
             if src_namespace == dst_namespace:
-                match_Labels = process_labels_namespace(policy_info, "destination")
+                match_label = process_labels_namespace(policy_info, "destination")
             else:
-                match_Labels = process_labels_cluster(policy_info, "destination")
+                match_label = process_labels_cluster(policy_info, "destination")
     elif direction == "EGRESS":
         is_ingress = False
         if trace_observation_point == "TO_ENDPOINT":
             affected_namespace = dst_namespace
             affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = source_port
+            relevant_port = src_port
             if src_namespace == dst_namespace:
-                match_Labels = process_labels_namespace(policy_info, "source")
+                match_label = process_labels_namespace(policy_info, "source")
             else:
-                match_Labels = process_labels_cluster(policy_info, "source")
+                match_label = process_labels_cluster(policy_info, "source")
         elif trace_observation_point == "TO_OVERLAY":
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = destination_port
+            relevant_port = dst_port
             if src_namespace == dst_namespace:
-                match_Labels = process_labels_namespace(policy_info, "destination")
+                match_label = process_labels_namespace(policy_info, "destination")
             else:
-                match_Labels = process_labels_cluster(policy_info, "destination")
+                match_label = process_labels_cluster(policy_info, "destination")
     else:
         noIngressEgress[0] += 1
         return policies, noIngressEgress
     
-    if not affected_labels or not match_Labels:
+    if not affected_labels or not match_label:
         noUsefulLabels[0] += 1
         return policies, noUsefulLabels
     
-    label_port_key = f"{match_Labels}-{relevant_port}-{is_ingress}"
+    if not is_world:
+        label_port_key = f"{match_label}-{relevant_port}-{is_ingress}"
+    else:
+        label_port_key = f"reserved:world-{relevant_port}-{is_ingress}"
     labelPortCounter[label_port_key] = labelPortCounter.get(label_port_key, 0)
     labelPortCounter[label_port_key] += 1
     logging.debug(f"{label_port_key} count {labelPortCounter[label_port_key]}")
@@ -69,7 +98,7 @@ def generate_policy(policies, flow, labelPortCounter, processedFlows, noIngressE
         policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
         if policy_id not in policies:
             policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)
-        new_rule = create_rule_template(relevant_port, l4_protocol, match_Labels, is_ingress)
+        new_rule = create_rule_template(relevant_port, l4_protocol, match_label, is_ingress)
         update_or_add_rule(policies, policy_id, new_rule, is_ingress)
         processedFlows[0] += 1
     else:

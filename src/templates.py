@@ -19,8 +19,6 @@ def create_rule_template(port, protocol, labels, is_ingress):
 
     return rule_template
 
-
-
 def add_dns_entry(policy):
     dns_rule = {
         "toEndpoints": [

@@ -2,7 +2,7 @@ import logging
 import os
 import yaml
 
-from .templates import add_dns_entry
+# from .templates import add_dns_entry
 
 def write_policies_to_files(policies):
     directory = "./policies"
