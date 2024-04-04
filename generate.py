@@ -15,7 +15,7 @@ def main(argv):
         sys.exit(2)
 
     policies = {}
-    labelPortCounter = {}
+    patternMatches = {}
     processedFlows = [0]
     noDirection = [0]
     noUsefulLabels = [0]
@@ -36,12 +36,13 @@ def main(argv):
                 if any("reserved:" in label.lower() for label in labels) and not any("reserved:world" in label.lower() for label in labels): 
                     reservedFlows += 1
                     continue
-                generate_policy(policies, log_entry, labelPortCounter, processedFlows, noDirection, noUsefulLabels)
+                generate_policy(policies, log_entry, patternMatches, processedFlows, noDirection, noUsefulLabels)
             except ValueError as e:
                 processingErrors += 1
                 logging.error(f"Error processing Flow: {e}")
                 continue
 
+    write_policies_to_files(policies, patternMatches)
     processedFlows[0] -= processingErrors
     lostFlows = totalFlows - (processingErrors + droppedFlows + reservedFlows + noUsefulLabels[0] + noDirection[0] + processedFlows[0])
     logging.info(f'Dropped flows: {droppedFlows}')
@@ -52,7 +53,6 @@ def main(argv):
     logging.info(f'Processing errors: {processingErrors}')
     logging.info(f'Total flows in file: {totalFlows}')
     logging.info(f'Successfully processed flows: {processedFlows[0]}')
-    write_policies_to_files(policies)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

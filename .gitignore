@@ -186,3 +186,5 @@ Temporary Items
 /policies
 pyvenv.cfg
 /demoData
+/report.txt
+/report.json

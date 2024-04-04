@@ -4,7 +4,7 @@ import yaml
 
 # from .templates import add_dns_entry
 
-def write_policies_to_files(policies):
+def write_policies_to_files(policies, patternMatches):
     directory = "./policies"
     
     if not os.path.exists(directory):
@@ -24,6 +24,11 @@ def write_policies_to_files(policies):
         with open(filename, 'w') as file:
             yaml.dump(ordered_policy_data, file, default_flow_style=False, sort_keys=False)
             logging.info(f"Policy written to {filename}")
+
+    with open('report.txt', 'w') as file:
+        for match, teams in patternMatches.items():
+            file.write(f'{match}: {teams}\n')
+
 
 def reorder_policy(policy):
     spec = policy.get('spec', {})
