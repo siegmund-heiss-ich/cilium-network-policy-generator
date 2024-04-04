@@ -19,9 +19,9 @@ def main(argv):
     processedFlows = [0]
     noDirection = [0]
     noUsefulLabels = [0]
+    droppedFlows = [0]
+    reservedFlows = [0]
     totalFlows = 0
-    droppedFlows = 0
-    reservedFlows = 0
     processingErrors = 0
 
     with open(file_path, 'r') as file:
@@ -29,14 +29,7 @@ def main(argv):
             try:
                 log_entry = json.loads(line)
                 totalFlows += 1
-                if log_entry.get("flow", {}).get("verdict", "").upper() == "DROPPED":
-                    droppedFlows += 1
-                    continue
-                labels = log_entry.get("flow", {}).get("source", {}).get("labels", []) + log_entry.get("flow", {}).get("destination", {}).get("labels", [])
-                if any("reserved:" in label.lower() for label in labels) and not any("reserved:world" in label.lower() for label in labels): 
-                    reservedFlows += 1
-                    continue
-                generate_policy(policies, log_entry, patternMatches, processedFlows, noDirection, noUsefulLabels)
+                generate_policy(policies, log_entry, patternMatches, processedFlows, noDirection, noUsefulLabels, droppedFlows, reservedFlows)
             except ValueError as e:
                 processingErrors += 1
                 logging.error(f"Error processing Flow: {e}")
@@ -44,9 +37,9 @@ def main(argv):
 
     write_policies_to_files(policies, patternMatches)
     processedFlows[0] -= processingErrors
-    lostFlows = totalFlows - (processingErrors + droppedFlows + reservedFlows + noUsefulLabels[0] + noDirection[0] + processedFlows[0])
-    logging.info(f'Dropped flows: {droppedFlows}')
-    logging.info(f'Flow with content "reserved:": {reservedFlows}')
+    lostFlows = totalFlows - (processingErrors + droppedFlows[0] + reservedFlows[0] + noUsefulLabels[0] + noDirection[0] + processedFlows[0])
+    logging.info(f'Dropped flows: {droppedFlows[0]}')
+    logging.info(f'Flow with content "reserved:": {reservedFlows[0]}')
     logging.info(f'Labels not useful: {noUsefulLabels[0]}')
     logging.info(f'Flows with no direction: {noDirection[0]}')
     logging.info(f'Lost flows: {lostFlows}')
