@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import yaml
@@ -11,7 +12,6 @@ def write_policies_to_files(policies, patternMatches):
         os.makedirs(directory)
 
     for policy_name, policy_data in policies.items():
-        # policies[policy_name] = add_dns_entry(policy_data)
         if 'ingress' not in policy_data['spec']:
             policy_data['spec']['ingress'] = [{}]
         if 'egress' not in policy_data['spec']:
@@ -24,10 +24,10 @@ def write_policies_to_files(policies, patternMatches):
         with open(filename, 'w') as file:
             yaml.dump(ordered_policy_data, file, default_flow_style=False, sort_keys=False)
             logging.info(f"Policy written to {filename}")
-
-    with open('report.txt', 'w') as file:
-        for match, teams in patternMatches.items():
-            file.write(f'{match}: {teams}\n')
+    
+    json_data = json.dumps({"patterns": patternMatches}, indent=4)
+    with open('report.json', 'w') as file:
+        file.write(json_data)
 
 
 def reorder_policy(policy):

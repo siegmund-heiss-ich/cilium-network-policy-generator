@@ -86,7 +86,7 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         return policies, noUsefulLabels
     
     if not is_world:
-        pattern = f"{affected_labels}-{match_labels}-{relevant_port}-Ingress: {is_ingress}"
+        pattern = f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
     else:
         pattern = f"reserved:world-{relevant_port}-{is_ingress}"
     patternMatches[pattern] = patternMatches.get(pattern, 0)
