@@ -93,15 +93,12 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     patternMatches[pattern] += 1
     logging.debug(f"{pattern} count {patternMatches[pattern]}")
 
-    if patternMatches[pattern] > 10:
-        policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
-        if policy_id not in policies:
-            policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)
-        new_rule = create_rule_template(relevant_port, l4_protocol, match_labels, is_ingress)
-        update_or_add_rule(policies, policy_id, new_rule, is_ingress)
-        processedFlows[0] += 1
-    else:
-        processedFlows[0] += 1
+    policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
+    if policy_id not in policies:
+        policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)
+    new_rule = create_rule_template(relevant_port, l4_protocol, match_labels, is_ingress)
+    update_or_add_rule(policies, policy_id, new_rule, is_ingress)
+    processedFlows[0] += 1
 
 def update_or_add_rule(policies, policy_id, new_rule, is_ingress):
     rule_key = "ingress" if is_ingress else "egress"
