@@ -51,6 +51,8 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
                     match_labels = process_labels_namespace(policy_info, "destination")
                 else:
                     match_labels = process_labels_cluster(policy_info, "destination")
+        else:
+            return
     elif direction == "EGRESS":
         is_ingress = False
         if trace_observation_point == "TO_ENDPOINT":
@@ -80,6 +82,8 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = dst_port
+        else:
+            return
     else:
         noIngressEgress[0] += 1
         return
