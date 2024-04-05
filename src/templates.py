@@ -8,41 +8,18 @@ def create_policy_template(policy_id, namespace, labels):
         }
     }
 
-def create_rule_template(port, protocol, labels, is_ingress):
+def create_rule_template(port, protocol, labels, is_ingress, is_world):
     rule_key = "fromEndpoints" if is_ingress else "toEndpoints"
-    rule_template = {
-        rule_key: [{"matchLabels": labels}],
-        "toPorts": [{
-            "ports": [{"port": str(port), "protocol": protocol}]
-        }]
-    }
+    rule_template = {}
+
+    if is_world:
+        entity_key = "fromEntities" if is_ingress else "toEntities"
+        rule_template[entity_key] = ["world"]
+    else:
+        rule_template[rule_key] = [{"matchLabels": labels}]
+
+    rule_template["toPorts"] = [{
+        "ports": [{"port": str(port), "protocol": protocol}]
+    }]
 
     return rule_template
-
-def add_dns_entry(policy):
-    dns_rule = {
-        "toEndpoints": [
-            {
-                "matchLabels": {
-                    "io.kubernetes.pod.namespace": "kube-system",
-                    "k8s-app": "kube-dns"
-                }
-            }
-        ],
-        "toPorts": [
-            {
-                "ports": [
-                    {
-                        "port": "53",
-                        "protocol": "UDP"
-                    }
-                ]
-            }
-        ]
-    }
-
-    if 'egress' not in policy['spec']:
-        return policy
-
-    policy['spec']['egress'].append(dns_rule)
-    return policy

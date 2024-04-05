@@ -16,6 +16,8 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     src_labels = policy_info.get("source", {}).get("labels", [])
     dst_labels = policy_info.get("destination", {}).get("labels", [])
     labels = policy_info.get("source", {}).get("labels", []) + policy_info.get("destination", {}).get("labels", [])
+    match_labels = []
+    is_world = False
 
     if policy_info.get("verdict", "").upper() == "DROPPED":
         droppedFlows[0] += 1
@@ -24,80 +26,75 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     if any("reserved:" in label.lower() for label in labels) and not any("reserved:world" in label.lower() for label in labels): 
         reservedFlows[0] += 1
         return
-    
-    if any("reserved:world" in label.lower() for label in src_labels):
-        return
-        is_world = True
-        match_labels = None
-        if direction == "INGRESS":
-            is_ingress = True
-        elif direction == "EGRESS":
-            is_ingress = False
-            affected_namespace = dst_namespace
-            affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = src_port
-    elif any("reserved:world" in label.lower() for label in dst_labels):
-        return
-        is_world = True
-        match_labels = None
-        if direction == "INGRESS":
-            is_ingress = True
-        elif direction == "EGRESS":
-            is_ingress = False
-            affected_namespace = src_namespace
-            affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = dst_labels
 
-    is_world = False
     if direction == "INGRESS":
         is_ingress = True
         if trace_observation_point == "TO_ENDPOINT":
             affected_namespace = dst_namespace
             affected_labels = process_labels_namespace(policy_info, "destination")
             relevant_port = dst_port
-            if src_namespace == dst_namespace:
-                match_labels = process_labels_namespace(policy_info, "source")
+            if "reserved:world" in src_labels:
+                is_world = True
             else:
-                match_labels = process_labels_cluster(policy_info, "source")
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "source")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "source")
         elif trace_observation_point == "TO_OVERLAY":
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = src_port
-            if src_namespace == dst_namespace:
-                match_labels = process_labels_namespace(policy_info, "destination")
+            if "reserved:world" in dst_labels:
+                is_world = True
             else:
-                match_labels = process_labels_cluster(policy_info, "destination")
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "destination")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "destination")
     elif direction == "EGRESS":
         is_ingress = False
         if trace_observation_point == "TO_ENDPOINT":
             affected_namespace = dst_namespace
             affected_labels = process_labels_namespace(policy_info, "destination")
             relevant_port = src_port
-            if src_namespace == dst_namespace:
-                match_labels = process_labels_namespace(policy_info, "source")
+            if "reserved:world" in src_labels:
+                is_world = True
             else:
-                match_labels = process_labels_cluster(policy_info, "source")
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "source")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "source")
         elif trace_observation_point == "TO_OVERLAY":
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = dst_port
-            if src_namespace == dst_namespace:
-                match_labels = process_labels_namespace(policy_info, "destination")
+            if "reserved:world" in dst_labels:
+                is_world = True
             else:
-                match_labels = process_labels_cluster(policy_info, "destination")
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "destination")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "destination")
+        elif trace_observation_point == "TO_STACK":
+            is_world = True
+            affected_namespace = src_namespace
+            affected_labels = process_labels_namespace(policy_info, "source")
+            relevant_port = dst_port
     else:
         noIngressEgress[0] += 1
         return
     
-    if not affected_labels or not match_labels:
-        noUsefulLabels[0] += 1
-        return
-    
-    if not is_world:
-        pattern = f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
+    if is_world:
+        if not affected_labels and not match_labels:
+            noUsefulLabels[0] += 1
+            return
+        pattern = f"{affected_labels}-reserved:world-{relevant_port}-{is_ingress}"
     else:
-        pattern = f"reserved:world-{relevant_port}-{is_ingress}"
-    
+        if not affected_labels or not match_labels:
+            noUsefulLabels[0] += 1
+            return
+        pattern = f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
+
     if pattern in patternMatches:
         patternMatches[pattern] += 1
         processedFlows[0] += 1
@@ -106,6 +103,6 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
         if policy_id not in policies:
             policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)
-        new_rule = create_rule_template(relevant_port, l4_protocol, match_labels, is_ingress)
-        add_rule(policies, policy_id, new_rule, is_ingress)
+        new_rule = create_rule_template(relevant_port, l4_protocol, match_labels, is_ingress, is_world)
+        add_rule(policies, policy_id, new_rule, is_ingress, is_world)
         processedFlows[0] += 1

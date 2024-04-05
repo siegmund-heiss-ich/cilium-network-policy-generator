@@ -24,5 +24,5 @@ def process_labels_cluster(policy_info, label_type):
     return labels_dict
 
 def is_key_of_no_interest(key):
-    patterns_of_no_interest = [".*cilium.*", ".*kubernetes.*", ".*k8s-app.*"]
+    patterns_of_no_interest = [".*cilium.*", ".*kubernetes.*", ".*k8s-app.*", "component"]
     return any(re.match(pattern, key) for pattern in patterns_of_no_interest)

@@ -3,8 +3,6 @@ import logging
 import os
 import yaml
 
-# from .templates import add_dns_entry
-
 def write_policies_to_files(policies, patternMatches):
     directory = "./policies"
     
@@ -37,10 +35,15 @@ def reorder_policy(policy):
     if 'endpointSelector' in spec:
         ordered_spec['endpointSelector'] = spec['endpointSelector']
 
-    if 'ingress' in spec:
-        ordered_spec['ingress'] = spec['ingress']
-    if 'egress' in spec:
-        ordered_spec['egress'] = spec['egress']
-
+    for direction in ['ingress', 'egress']:
+        if direction in spec:
+            ordered_rules = []
+            for rule in spec[direction]:
+                if 'toEntities' in rule or 'fromEntities' in rule:
+                    ordered_rules.append(rule)
+            for rule in spec[direction]:
+                if 'toEntities' not in rule and 'fromEntities' not in rule:
+                    ordered_rules.append(rule)
+            ordered_spec[direction] = ordered_rules
     policy['spec'] = ordered_spec
     return policy
