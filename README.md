@@ -9,6 +9,7 @@ To fine-tune the generated policies, the [policy editor](https://editor.networkp
 ## Usage
 
 On Linux/macOS: `python3 generate.py <path/to/exported/flowLogs>`
+
 On Windows: `python generate.py <path/to/exported/flowLogs>`
 
 The generated policies will be stored in `./policies`.
