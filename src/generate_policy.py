@@ -22,12 +22,13 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         droppedFlows[0] += 1
         return
 
-    if any("reserved:" in label.lower() for label in src_labels + dst_labels):
-        has_reserved_world_src = any("reserved:world" in label.lower() for label in src_labels)
-        has_reserved_world_dst = any("reserved:world" in label.lower() for label in dst_labels)
-        if not (has_reserved_world_src and not has_reserved_world_dst):
-            reservedFlows[0] += 1
-            return
+    combined_labels = src_labels + dst_labels
+    if any("reserved:" in label.lower() for label in combined_labels) and not any("reserved:world" in label.lower() for label in combined_labels): 
+        reservedFlows[0] += 1
+        return
+    if all(any("reserved:" in label.lower() for label in labels) for labels in [src_labels, dst_labels]) and not all(any("reserved:world" in label.lower() for label in labels) for labels in [src_labels, dst_labels]):
+        reservedFlows[0] += 1
+        return
 
     if direction == "INGRESS":
         is_ingress = True
