@@ -1,4 +1,4 @@
-def add_rule(policies, policy_id, new_rule, is_ingress, is_world):
+def add_L3L4_rule(policies, policy_id, new_rule, is_ingress, is_world):
     rule_key = "ingress" if is_ingress else "egress"
     policy = policies.get(policy_id)
 
@@ -36,3 +36,26 @@ def add_rule(policies, policy_id, new_rule, is_ingress, is_world):
 
     if not existing_rule_found:
         policy["spec"][rule_key].append(new_rule)
+
+
+def add_L7_allowAll(policy_data):
+    port_protocol_map = {
+        '80': 'http',
+        '8080': 'http',
+        '443': 'http',
+        '8443': 'http',
+        '53': 'dns',
+        '9092': 'kafka',
+        '9093': 'kafka'
+    }
+
+    for direction in ['ingress', 'egress']:
+        if direction in policy_data['spec']:
+            for rule in policy_data['spec'][direction]:
+                if 'toPorts' in rule:
+                    for port_entry in rule['toPorts']:
+                        for port in port_entry.get('ports', []):
+                            port_number = port.get('port')
+                            protocol = port_protocol_map.get(port_number)
+                            if protocol:
+                                port_entry['rules'] = {protocol: [{}]}

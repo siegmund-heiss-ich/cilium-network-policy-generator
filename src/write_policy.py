@@ -3,7 +3,9 @@ import logging
 import os
 import yaml
 
-def write_policies_to_files(policies, patternMatches):
+from .add_rule import add_L7_allowAll
+
+def write_policies_to_files(policies, patternMatches, L7allowAll):
     directory = "./policies"
     
     if not os.path.exists(directory):
@@ -14,6 +16,9 @@ def write_policies_to_files(policies, patternMatches):
             policy_data['spec']['ingress'] = [{}]
         if 'egress' not in policy_data['spec']:
             policy_data['spec']['egress'] = [{}]
+        
+        if L7allowAll:
+            add_L7_allowAll(policy_data)
 
         ordered_policy_data = reorder_policy(policy_data)
 

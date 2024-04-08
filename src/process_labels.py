@@ -10,7 +10,7 @@ def process_labels_namespace(policy_info, label_type):
             if not is_key_of_no_interest(key):
                 labels_dict[key] = value
         except ValueError:
-            logging.warning(f"Could not parse label: {label}")
+            logging.warning(f"Could not parse label: {label} Flow: {policy_info}")
     return labels_dict
 
 def process_labels_cluster(policy_info, label_type):
@@ -20,7 +20,7 @@ def process_labels_cluster(policy_info, label_type):
             key, value = label.split("=")
             labels_dict[key] = value
         except ValueError:
-            logging.warning(f"Could not parse label: {label}")
+            logging.warning(f"Could not parse label: {label} Flow: {policy_info}")
     return labels_dict
 
 def is_key_of_no_interest(key):
