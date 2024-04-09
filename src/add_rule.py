@@ -44,7 +44,11 @@ def add_L7_allowAll(policy_data):
         '8080': 'http',
         '443': 'http',
         '8443': 'http',
-        '53': 'dns',
+        '50051': 'http',
+        '9555': 'http',
+        '7000': 'http',
+        '7070': 'http',
+        # '53': 'dns',
         '9092': 'kafka',
         '9093': 'kafka'
     }
