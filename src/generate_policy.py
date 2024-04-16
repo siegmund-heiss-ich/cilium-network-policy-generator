@@ -1,7 +1,5 @@
-from .templates import create_rule_template
-from .templates import create_policy_template
-from .process_labels import process_labels_namespace
-from .process_labels import process_labels_cluster
+from .templates import *
+from .process_labels import *
 from .add_rule import add_L3L4_rule
 
 def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgress, noUsefulLabels, droppedFlows, reservedFlows):
@@ -10,8 +8,8 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     src_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
     dst_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("destination_port", 0)
     direction = policy_info.get('traffic_direction', '')
-    src_namespace = policy_info.get("source", {}).get("namespace", "")
-    dst_namespace = policy_info.get("destination", {}).get("namespace", "")
+    src_namespace = process_namespace(policy_info.get("source", {}).get("labels", []))
+    dst_namespace = process_namespace(policy_info.get("destination", {}).get("labels", []))
     trace_observation_point = policy_info.get("trace_observation_point", "")
     src_labels = policy_info.get("source", {}).get("labels", [])
     dst_labels = policy_info.get("destination", {}).get("labels", [])
@@ -23,10 +21,10 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         return
 
     combined_labels = src_labels + dst_labels
-    if any("reserved:" in label.lower() for label in combined_labels) and not any("reserved:world" in label.lower() for label in combined_labels): 
+    if any("reserved:" in label.lower() for label in combined_labels) and not any("reserved:world" in label.lower() for label in combined_labels):
         reservedFlows[0] += 1
         return
-    if all(any("reserved:" in label.lower() for label in labels) for labels in [src_labels, dst_labels]) and not all(any("reserved:world" in label.lower() for label in labels) for labels in [src_labels, dst_labels]):
+    if all(any("reserved:" in label.lower() for label in labels) for labels in [src_labels, dst_labels]):
         reservedFlows[0] += 1
         return
 
@@ -90,6 +88,7 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = dst_port
         else:
+            print(policy_info)
             return
     else:
         noIngressEgress[0] += 1

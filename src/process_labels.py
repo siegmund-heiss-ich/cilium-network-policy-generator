@@ -1,6 +1,12 @@
 import re
 import logging
 
+def process_namespace(labels):
+    for label in labels:
+        if 'pod.namespace' in label:
+            return label.split('=')[-1]
+    return None
+
 def process_labels_namespace(policy_info, label_type):
     labels_dict = {}
     for label in policy_info.get(label_type, {}).get("labels", []):
