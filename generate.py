@@ -36,7 +36,7 @@ def main(argv):
             try:
                 log_entry = json.loads(line)
                 totalFlows += 1
-                generate_policy(policies, log_entry, patternMatches, processedFlows, noDirection, noUsefulLabels, droppedFlows, reservedFlows)
+                generate_policy(policies, log_entry, patternMatches, processedFlows, noDirection, noUsefulLabels, droppedFlows, reservedFlows, args.L7)
             except ValueError as e:
                 processingErrors += 1
                 logging.debug(f"Processing error: {e}, Flow: {log_entry}")

@@ -2,7 +2,7 @@ from .templates import *
 from .process_labels import *
 from .add_rule import add_L3L4_rule
 
-def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgress, noUsefulLabels, droppedFlows, reservedFlows):
+def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgress, noUsefulLabels, droppedFlows, reservedFlows, L7):
     policy_info = flow.get("flow", {})
     l4_protocol = "TCP" if "TCP" in policy_info.get("l4", {}) else "UDP"
     src_port = policy_info.get("l4", {}).get(l4_protocol, {}).get("source_port", 0)
@@ -16,21 +16,24 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     match_labels = []
     is_world = False
 
+    # To implement:
+    if policy_info.get('Type') == "L7":
+        if L7:
+            print(policy_info)
+        return
+
     if policy_info.get("verdict", "").upper() == "DROPPED":
         droppedFlows[0] += 1
         return
 
     combined_labels = src_labels + dst_labels
-    if any("reserved:" in label.lower() for label in combined_labels) and not any("reserved:world" in label.lower() for label in combined_labels):
-        reservedFlows[0] += 1
-        return
-    if all(any("reserved:" in label.lower() for label in labels) for labels in [src_labels, dst_labels]):
+    if any("reserved:" in label.lower() for label in combined_labels) and not any("reserved:world" in label.lower() for label in combined_labels) or all(any("reserved:" in label.lower() for label in labels) for labels in [src_labels, dst_labels]):
         reservedFlows[0] += 1
         return
 
     if direction == "INGRESS":
         is_ingress = True
-        if trace_observation_point == "TO_ENDPOINT":
+        if trace_observation_point == "TO_ENDPOINT" or trace_observation_point == "TO_PROXY" or trace_observation_point == "":
             affected_namespace = dst_namespace
             affected_labels = process_labels_namespace(policy_info, "destination")
             relevant_port = dst_port
@@ -56,7 +59,7 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
                 else:
                     match_labels = process_labels_cluster(policy_info, "destination")
         else:
-            print(policy_info)
+            logging.warning(f"trace_observation_point not handled for flow: {policy_info}")
             return
     elif direction == "EGRESS":
         is_ingress = False
@@ -71,7 +74,7 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
                     match_labels = process_labels_namespace(policy_info, "source")
                 else:
                     match_labels = process_labels_cluster(policy_info, "source")
-        elif trace_observation_point == "TO_OVERLAY":
+        elif trace_observation_point == "TO_OVERLAY" or trace_observation_point == "TO_PROXY" or trace_observation_point == "":
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = dst_port
@@ -88,7 +91,7 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = dst_port
         else:
-            print(policy_info)
+            logging.warning(f"trace_observation_point not handled for flow: {policy_info}")
             return
     else:
         noIngressEgress[0] += 1
