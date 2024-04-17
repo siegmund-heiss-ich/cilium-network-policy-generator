@@ -13,14 +13,6 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     trace_observation_point = policy_info.get("trace_observation_point", "")
     src_labels = policy_info.get("source", {}).get("labels", [])
     dst_labels = policy_info.get("destination", {}).get("labels", [])
-    match_labels = []
-    is_world = False
-
-    # To implement:
-    if policy_info.get('Type') == "L7":
-        if L7:
-            print(policy_info)
-        return
 
     if policy_info.get("verdict", "").upper() == "DROPPED":
         droppedFlows[0] += 1
@@ -31,6 +23,15 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         reservedFlows[0] += 1
         return
 
+    if policy_info.get('Type') != "L7":
+        process_L3L4(policies, direction, trace_observation_point, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol)
+    else:
+        if L7:
+            process_L7()
+
+def process_L3L4(policies, direction, trace_observation_point, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol):
+    match_labels = []
+    is_world = False
     if direction == "INGRESS":
         is_ingress = True
         if trace_observation_point == "TO_ENDPOINT" or trace_observation_point == "TO_PROXY" or trace_observation_point == "":
@@ -96,18 +97,18 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     else:
         noIngressEgress[0] += 1
         return
-    
-    if is_world:
-        if not affected_labels and not match_labels:
-            noUsefulLabels[0] += 1
-            return
-        pattern = f"{affected_labels}-reserved:world-{relevant_port}-{is_ingress}"
-    else:
-        if not affected_labels or not match_labels:
-            noUsefulLabels[0] += 1
-            return
-        pattern = f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
 
+    pattern = create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress)
+    if pattern is None:
+        noUsefulLabels[0] += 1
+        return
+    
+    process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
+
+def process_L7():
+    return
+
+def process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels):
     if pattern in patternMatches:
         patternMatches[pattern] += 1
         processedFlows[0] += 1
@@ -119,3 +120,14 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         new_rule = create_rule_template(relevant_port, l4_protocol, match_labels, is_ingress, is_world)
         add_L3L4_rule(policies, policy_id, new_rule, is_ingress, is_world)
         processedFlows[0] += 1
+    return
+
+def create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress):
+    if is_world:
+        if not affected_labels and not match_labels:
+            return
+        return f"{affected_labels}-reserved:world-{relevant_port}-{is_ingress}"
+    else:
+        if not affected_labels or not match_labels:
+            return
+        return f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
