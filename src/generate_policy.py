@@ -27,14 +27,14 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         process_L3L4(policies, direction, trace_observation_point, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol)
     else:
         if L7:
-            process_L7()
+            process_L7(policies, direction, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol)
 
 def process_L3L4(policies, direction, trace_observation_point, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol):
     match_labels = []
     is_world = False
     if direction == "INGRESS":
         is_ingress = True
-        if trace_observation_point == "TO_ENDPOINT" or trace_observation_point == "TO_PROXY" or trace_observation_point == "":
+        if trace_observation_point in ["TO_ENDPOINT", "TO_PROXY", ""]:
             affected_namespace = dst_namespace
             affected_labels = process_labels_namespace(policy_info, "destination")
             relevant_port = dst_port
@@ -75,7 +75,7 @@ def process_L3L4(policies, direction, trace_observation_point, src_labels, src_n
                     match_labels = process_labels_namespace(policy_info, "source")
                 else:
                     match_labels = process_labels_cluster(policy_info, "source")
-        elif trace_observation_point == "TO_OVERLAY" or trace_observation_point == "TO_PROXY" or trace_observation_point == "":
+        elif trace_observation_point in ["TO_OVERLAY", "TO_PROXY", ""]:
             affected_namespace = src_namespace
             affected_labels = process_labels_namespace(policy_info, "source")
             relevant_port = dst_port
@@ -105,8 +105,72 @@ def process_L3L4(policies, direction, trace_observation_point, src_labels, src_n
     
     process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
 
-def process_L7():
-    return
+def process_L7(policies, direction, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol):
+    match_labels = []
+    is_world = False
+    is_reply = policy_info.get("is_reply")
+    if direction == "INGRESS":
+        is_ingress = True
+        if is_reply:
+            affected_namespace = src_namespace
+            affected_labels = process_labels_namespace(policy_info, "source")
+            relevant_port = src_port
+            if "reserved:world" in dst_labels:
+                is_world = True
+            else:
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "destination")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "destination")
+        elif not is_reply:
+            affected_namespace = dst_namespace
+            affected_labels = process_labels_namespace(policy_info, "destination")
+            relevant_port = dst_port
+            if "reserved:world" in src_labels:
+                is_world = True
+            else:
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "source")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "source")
+        else:
+            return
+    elif direction == "EGRESS":
+        is_ingress = False
+        if is_reply:
+            affected_namespace = dst_namespace
+            affected_labels = process_labels_namespace(policy_info, "destination")
+            relevant_port = src_port
+            if "reserved:world" in src_labels:
+                is_world = True
+            else:
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "source")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "source")
+        elif not is_reply:
+            affected_namespace = src_namespace
+            affected_labels = process_labels_namespace(policy_info, "source")
+            relevant_port = dst_port
+            if "reserved:world" in dst_labels:
+                is_world = True
+            else:
+                if src_namespace == dst_namespace:
+                    match_labels = process_labels_namespace(policy_info, "destination")
+                else:
+                    match_labels = process_labels_cluster(policy_info, "destination")
+        else:
+            return
+    else:
+        noIngressEgress[0] += 1
+        return  
+
+    pattern = create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress)
+    if pattern is None:
+        noUsefulLabels[0] += 1
+        return
+    
+    process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
 
 def process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels):
     if pattern in patternMatches:
