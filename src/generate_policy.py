@@ -10,9 +10,10 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     direction = policy_info.get('traffic_direction', '')
     src_namespace = process_namespace(policy_info.get("source", {}).get("labels", []))
     dst_namespace = process_namespace(policy_info.get("destination", {}).get("labels", []))
-    trace_observation_point = policy_info.get("trace_observation_point", "")
     src_labels = policy_info.get("source", {}).get("labels", [])
     dst_labels = policy_info.get("destination", {}).get("labels", [])
+    match_labels = []
+    is_world = False
 
     if policy_info.get("verdict", "").upper() == "DROPPED":
         droppedFlows[0] += 1
@@ -23,91 +24,6 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         reservedFlows[0] += 1
         return
 
-    if policy_info.get('Type') != "L7":
-        process_L3L4(policies, direction, trace_observation_point, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol)
-    else:
-        if L7:
-            process_L7(policies, direction, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol)
-
-def process_L3L4(policies, direction, trace_observation_point, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol):
-    match_labels = []
-    is_world = False
-    if direction == "INGRESS":
-        is_ingress = True
-        if trace_observation_point in ["TO_ENDPOINT", "TO_PROXY", ""]:
-            affected_namespace = dst_namespace
-            affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = dst_port
-            if "reserved:world" in src_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "source")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "source")
-        elif trace_observation_point == "TO_OVERLAY":
-            if "reserved:world" in src_labels:
-                is_world = True
-                affected_namespace = src_namespace
-                affected_labels = process_labels_namespace(policy_info, "destination")
-                relevant_port = dst_port
-            else:
-                affected_namespace = src_namespace
-                affected_labels = process_labels_namespace(policy_info, "source")
-                relevant_port = src_port
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "destination")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "destination")
-        else:
-            logging.warning(f"trace_observation_point not handled for flow: {policy_info}")
-            return
-    elif direction == "EGRESS":
-        is_ingress = False
-        if trace_observation_point == "TO_ENDPOINT":
-            affected_namespace = dst_namespace
-            affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = src_port
-            if "reserved:world" in src_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "source")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "source")
-        elif trace_observation_point in ["TO_OVERLAY", "TO_PROXY", ""]:
-            affected_namespace = src_namespace
-            affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = dst_port
-            if "reserved:world" in dst_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "destination")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "destination")
-        elif trace_observation_point == "TO_STACK":
-            is_world = True
-            affected_namespace = src_namespace
-            affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = dst_port
-        else:
-            logging.warning(f"trace_observation_point not handled for flow: {policy_info}")
-            return
-    else:
-        noIngressEgress[0] += 1
-        return
-
-    pattern = create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress)
-    if pattern is None:
-        noUsefulLabels[0] += 1
-        return
-    
-    process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
-
-def process_L7(policies, direction, src_labels, src_namespace, src_port, dst_labels, dst_namespace, dst_port, policy_info, noIngressEgress, noUsefulLabels, patternMatches, processedFlows, l4_protocol):
-    match_labels = []
-    is_world = False
     is_reply = policy_info.get("is_reply")
     if direction == "INGRESS":
         is_ingress = True
@@ -134,6 +50,7 @@ def process_L7(policies, direction, src_labels, src_namespace, src_port, dst_lab
                 else:
                     match_labels = process_labels_cluster(policy_info, "source")
         else:
+            logging.warning(f"No reply entry in flow: {policy_info}")
             return
     elif direction == "EGRESS":
         is_ingress = False
@@ -160,10 +77,11 @@ def process_L7(policies, direction, src_labels, src_namespace, src_port, dst_lab
                 else:
                     match_labels = process_labels_cluster(policy_info, "destination")
         else:
+            logging.warning(f"No reply entry in flow: {policy_info}")
             return
     else:
         noIngressEgress[0] += 1
-        return  
+        return
 
     pattern = create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress)
     if pattern is None:
