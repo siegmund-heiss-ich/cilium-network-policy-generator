@@ -27,58 +27,33 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
     is_reply = policy_info.get("is_reply")
     if direction == "INGRESS":
         is_ingress = True
-        if is_reply:
-            affected_namespace = src_namespace
-            affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = src_port
-            if "reserved:world" in dst_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "destination")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "destination")
-        elif not is_reply:
-            affected_namespace = dst_namespace
-            affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = dst_port
-            if "reserved:world" in src_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "source")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "source")
+        affected_namespace = src_namespace if is_reply else dst_namespace
+        affected_labels = process_labels_namespace(policy_info, "source" if is_reply else "destination")
+        relevant_port = src_port if is_reply else dst_port
+        labels_to_check = dst_labels if is_reply else src_labels
+
+        if "reserved:world" in labels_to_check:
+            is_world = True
         else:
-            logging.warning(f"No reply entry in flow: {policy_info}")
-            return
+            if src_namespace == dst_namespace:
+                match_labels = process_labels_namespace(policy_info, "destination" if is_reply else "source")
+            else:
+                match_labels = process_labels_cluster(policy_info, "destination" if is_reply else "source")
+
     elif direction == "EGRESS":
         is_ingress = False
-        if is_reply:
-            affected_namespace = dst_namespace
-            affected_labels = process_labels_namespace(policy_info, "destination")
-            relevant_port = src_port
-            if "reserved:world" in src_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "source")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "source")
-        elif not is_reply:
-            affected_namespace = src_namespace
-            affected_labels = process_labels_namespace(policy_info, "source")
-            relevant_port = dst_port
-            if "reserved:world" in dst_labels:
-                is_world = True
-            else:
-                if src_namespace == dst_namespace:
-                    match_labels = process_labels_namespace(policy_info, "destination")
-                else:
-                    match_labels = process_labels_cluster(policy_info, "destination")
+        affected_namespace = dst_namespace if is_reply else src_namespace
+        affected_labels = process_labels_namespace(policy_info, "destination" if is_reply else "source")
+        relevant_port = src_port if is_reply else dst_port
+        labels_to_check = src_labels if is_reply else dst_labels
+
+        if "reserved:world" in labels_to_check:
+            is_world = True
         else:
-            logging.warning(f"No reply entry in flow: {policy_info}")
-            return
+            if src_namespace == dst_namespace:
+                match_labels = process_labels_namespace(policy_info, "source" if is_reply else "destination")
+            else:
+                match_labels = process_labels_cluster(policy_info, "source" if is_reply else "destination")
     else:
         noIngressEgress[0] += 1
         return
