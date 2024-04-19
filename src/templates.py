@@ -8,7 +8,7 @@ def create_policy_template(policy_id, namespace, labels):
         }
     }
 
-def create_rule_template(port, protocol, labels, is_ingress, is_world):
+def create_L3L4_rule_template(port, protocol, labels, is_ingress, is_world):
     rule_key = "fromEndpoints" if is_ingress else "toEndpoints"
     rule_template = {}
 

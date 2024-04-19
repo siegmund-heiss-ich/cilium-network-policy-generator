@@ -1,6 +1,7 @@
 from .templates import *
 from .process_labels import *
-from .add_rule import add_L3L4_rule
+from .add_rule import add_L3L4_rule, add_L7_rule
+from urllib.parse import urlparse
 
 def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgress, noUsefulLabels, droppedFlows, reservedFlows, L7):
     policy_info = flow.get("flow", {})
@@ -58,33 +59,60 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         noIngressEgress[0] += 1
         return
 
-    pattern = create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress)
+    pattern = create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress, None)
     if pattern is None:
         noUsefulLabels[0] += 1
         return
     
-    process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
+    process_L3L4_result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
 
-def process_Result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels):
+    if policy_info.get('Type') == "L7" and L7:
+        process_L7_result(policy_info, policies, affected_labels, match_labels, relevant_port, is_ingress, patternMatches, is_world)
+
+def process_L3L4_result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels):
     if pattern in patternMatches:
         patternMatches[pattern] += 1
         processedFlows[0] += 1
     else:
         patternMatches[pattern] = 1
-        policy_id = '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
+        policy_id = create_policy_id(affected_labels)
         if policy_id not in policies:
             policies[policy_id] = create_policy_template(policy_id, affected_namespace, affected_labels)
-        new_rule = create_rule_template(relevant_port, l4_protocol, match_labels, is_ingress, is_world)
+        new_rule = create_L3L4_rule_template(relevant_port, l4_protocol, match_labels, is_ingress, is_world)
         add_L3L4_rule(policies, policy_id, new_rule, is_ingress, is_world)
         processedFlows[0] += 1
-    return
 
-def create_Pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress):
-    if is_world:
-        if not affected_labels and not match_labels:
-            return
-        return f"{affected_labels}-reserved:world-{relevant_port}-{is_ingress}"
+def process_L7_result(policy_info, policies, affected_labels, match_labels, relevant_port, is_ingress, patternMatches, is_world):
+    policy_id = create_policy_id(affected_labels)
+    L7_info = policy_info.get('l7', {})
+    if 'http' in L7_info:
+        L7_protocol = 'http'
+        http = L7_info.get('http', {})
+        parsed_url = urlparse(http.get('url'))
+        new_rule = {"method": http.get('method'), "path": parsed_url.path}
+        pattern = create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress, new_rule)
+        if pattern in patternMatches:
+            patternMatches[pattern] += 1
+        else:
+            patternMatches[pattern] = 1
+            add_L7_rule(policies, policy_id, is_ingress, relevant_port, L7_protocol, new_rule, is_world)
     else:
-        if not affected_labels or not match_labels:
-            return
-        return f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
+        logging.warning("L7 flows other than http are not supported yet!")
+
+def create_policy_id(affected_labels):
+    return '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
+
+def create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress, L7_rule):
+    if is_world:
+        if not (affected_labels or match_labels):
+            return None
+        pattern = f"{affected_labels}-reserved:world-{relevant_port}-{is_ingress}"
+        if L7_rule != None:
+            pattern += f"-{L7_rule}"
+    else:
+        if not (affected_labels and match_labels):
+            return None
+        pattern = f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
+        if L7_rule:
+            pattern += f"-{L7_rule}"
+    return pattern

@@ -28,7 +28,7 @@ def write_policies_to_files(policies, patternMatches, L7allowAll):
             yaml.dump(ordered_policy_data, file, default_flow_style=False, sort_keys=False)
             logging.info(f"Policy written to {filename}")
     
-    json_data = json.dumps({"patterns": patternMatches}, indent=4)
+    json_data = json.dumps({"patterns": patternMatches}, indent=4, sort_keys=True)
     with open('report.json', 'w') as file:
         file.write(json_data)
 

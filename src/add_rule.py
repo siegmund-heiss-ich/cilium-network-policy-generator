@@ -37,6 +37,30 @@ def add_L3L4_rule(policies, policy_id, new_rule, is_ingress, is_world):
     if not existing_rule_found:
         policy["spec"][rule_key].append(new_rule)
 
+def add_L7_rule(policies, policy_id, is_ingress, port_number, protocol, l7_rules, is_world):
+    policy = policies[policy_id]
+    rule_key = "ingress" if is_ingress else "egress"
+    direction_rules = policy['spec'].setdefault(rule_key, [])
+
+    entity_key = 'toEntities' if rule_key == 'egress' else 'fromEntities'
+    endpoint_key = 'toEndpoints' if rule_key == 'egress' else 'fromEndpoints'
+
+    for rule in direction_rules:
+        if is_world:
+            if entity_key in rule and 'world' in rule[entity_key]:
+                target_rule = rule
+        else:
+            if endpoint_key in rule:
+                target_rule = rule
+
+    to_ports = target_rule.setdefault('toPorts', [])
+    for port_entry in to_ports:
+        if port_entry['ports'][0]['port'] == str(port_number):
+            port_rules = port_entry.setdefault('rules', {})
+            if protocol not in port_rules:
+                port_rules[protocol] = []
+            if l7_rules not in port_rules[protocol]:
+                port_rules[protocol].append(l7_rules)
 
 def add_L7_allowAll(policy_data):
     port_protocol_map = {
