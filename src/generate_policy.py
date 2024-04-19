@@ -59,15 +59,15 @@ def generate_policy(policies, flow, patternMatches, processedFlows, noIngressEgr
         noIngressEgress[0] += 1
         return
 
-    pattern = create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress, None)
-    if pattern is None:
+    pattern = create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress)
+    if not pattern:
         noUsefulLabels[0] += 1
         return
     
     process_L3L4_result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels)
 
     if policy_info.get('Type') == "L7" and L7:
-        process_L7_result(policy_info, policies, affected_labels, match_labels, relevant_port, is_ingress, patternMatches, is_world)
+        process_L7_result(policy_info, policies, affected_labels, relevant_port, is_ingress, pattern, patternMatches, is_world)
 
 def process_L3L4_result(policies, pattern, patternMatches, processedFlows, affected_labels, relevant_port, l4_protocol, affected_namespace, is_ingress, is_world, match_labels):
     if pattern in patternMatches:
@@ -82,7 +82,7 @@ def process_L3L4_result(policies, pattern, patternMatches, processedFlows, affec
         add_L3L4_rule(policies, policy_id, new_rule, is_ingress, is_world)
         processedFlows[0] += 1
 
-def process_L7_result(policy_info, policies, affected_labels, match_labels, relevant_port, is_ingress, patternMatches, is_world):
+def process_L7_result(policy_info, policies, affected_labels, relevant_port, is_ingress, pattern, patternMatches, is_world):
     policy_id = create_policy_id(affected_labels)
     L7_info = policy_info.get('l7', {})
     if 'http' in L7_info:
@@ -90,7 +90,7 @@ def process_L7_result(policy_info, policies, affected_labels, match_labels, rele
         http = L7_info.get('http', {})
         parsed_url = urlparse(http.get('url'))
         new_rule = {"method": http.get('method'), "path": parsed_url.path}
-        pattern = create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress, new_rule)
+        pattern += f"-{new_rule}"
         if pattern in patternMatches:
             patternMatches[pattern] += 1
         else:
@@ -102,17 +102,13 @@ def process_L7_result(policy_info, policies, affected_labels, match_labels, rele
 def create_policy_id(affected_labels):
     return '-'.join(f"{key}-{value}" for key, value in sorted(affected_labels.items()))
 
-def create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress, L7_rule):
+def create_pattern(is_world, affected_labels, match_labels, relevant_port, is_ingress):
     if is_world:
         if not (affected_labels or match_labels):
-            return None
+            return
         pattern = f"{affected_labels}-reserved:world-{relevant_port}-{is_ingress}"
-        if L7_rule != None:
-            pattern += f"-{L7_rule}"
     else:
         if not (affected_labels and match_labels):
-            return None
+            return
         pattern = f"{affected_labels}-{match_labels}-{relevant_port}-{is_ingress}"
-        if L7_rule:
-            pattern += f"-{L7_rule}"
     return pattern
