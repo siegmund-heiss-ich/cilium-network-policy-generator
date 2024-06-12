@@ -2,6 +2,8 @@ import json
 import logging
 import os
 import yaml
+import string
+import random
 
 from .add_rule import add_L7_allowAll
 
@@ -24,14 +26,20 @@ def write_policies_to_files(policies, patternMatches, L7allowAll):
 
         filename = os.path.join(directory, f"{policy_name}.yaml")
 
-        with open(filename, 'w') as file:
-            yaml.dump(ordered_policy_data, file, default_flow_style=False, sort_keys=False)
-            logging.info(f"Policy written to {filename}")
-    
+        try:
+            with open(filename, 'w') as file:
+                yaml.dump(ordered_policy_data, file, default_flow_style=False, sort_keys=False)
+                logging.info(f"Policy written to {filename}")
+        except Exception as e:
+            logging.error(f"Failed to write to {filename}: {e}")
+            random_filename = os.path.join(directory, f"{''.join(random.choices(string.ascii_letters + string.digits, k=8))}.yaml")
+            with open(random_filename, 'w') as file:
+                yaml.dump(ordered_policy_data, file, default_flow_style=False, sort_keys=False)
+                logging.info(f"Policy written to {random_filename}")
+
     json_data = json.dumps({"patterns": patternMatches}, indent=4, sort_keys=True)
     with open('report.json', 'w') as file:
         file.write(json_data)
-
 
 def reorder_policy(policy):
     spec = policy.get('spec', {})
